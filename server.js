@@ -10,6 +10,91 @@ const PORT = process.env.PORT || 3000;
 const JWT_SECRET = process.env.JWT_SECRET || 'nexior-studio-secret-change-in-production';
 const ACE_DATA_API_KEY = process.env.ACE_DATA_API_KEY || '';
 
+// ── Login page HTML ──
+const LOGIN_PAGE = `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Nexior Studio — Login</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:system-ui,-apple-system,sans-serif;background:#0B1120;color:#F1F5F9;display:grid;place-items:center;min-height:100vh}
+.card{background:#111827;border:1px solid #1E293B;border-radius:16px;padding:40px;width:100%;max-width:400px;box-shadow:0 20px 60px rgba(0,0,0,.5)}
+h1{font-size:1.5rem;margin-bottom:8px;text-align:center}
+p{color:#94A3B8;text-align:center;margin-bottom:24px;font-size:.9rem}
+label{display:block;margin-bottom:4px;font-size:.85rem;color:#CBD5E1}
+input{width:100%;padding:12px;background:#1A2235;border:1px solid #334155;border-radius:8px;color:white;font-size:1rem;margin-bottom:16px}
+input:focus{outline:none;border-color:#0891B2}
+button{width:100%;padding:12px;background:linear-gradient(135deg,#2563EB,#0891B2);color:white;border:none;border-radius:8px;font-size:1rem;font-weight:600;cursor:pointer;margin-top:8px}
+button:hover{opacity:.9}
+.error{color:#EF4444;text-align:center;margin-bottom:12px;font-size:.85rem}
+.success{color:#10B981;text-align:center;margin-bottom:12px;font-size:.85rem}
+a{color:#0891B2;text-decoration:none}
+.toggle{text-align:center;margin-top:16px;font-size:.85rem;color:#94A3B8}
+</style>
+</head>
+<body>
+<div class="card">
+<h1>Nexior Studio</h1>
+<p>AI Creative Hub</p>
+<div id="error" class="error" style="display:none"></div>
+<form id="loginForm" style="display:none">
+<label>Email</label>
+<input type="email" id="loginEmail" required>
+<label>Password</label>
+<input type="password" id="loginPassword" required minlength="6">
+<button type="submit">Sign In</button>
+</form>
+<form id="registerForm" style="display:none">
+<label>Email</label>
+<input type="email" id="registerEmail" required>
+<label>Password</label>
+<input type="password" id="registerPassword" required minlength="6">
+<button type="submit">Create Account</button>
+</form>
+<p class="toggle"><a href="#" id="toggleLink">Create an account</a></p>
+</div>
+<script>
+const params=new URLSearchParams(window.location.search);
+const redirect=params.get('redirect')||'/';
+const site=params.get('site')||'';
+let mode='login';
+function showError(msg){const e=document.getElementById('error');e.textContent=msg;e.style.display='block'}
+function hideError(){document.getElementById('error').style.display='none'}
+document.getElementById('toggleLink').addEventListener('click',e=>{
+e.preventDefault();
+mode=mode==='login'?'register':'login';
+document.getElementById('loginForm').style.display=mode==='login'?'block':'none';
+document.getElementById('registerForm').style.display=mode==='register'?'block':'none';
+document.getElementById('toggleLink').textContent=mode==='login'?'Create an account':'Already have an account?';
+hideError();
+});
+document.getElementById('loginForm').addEventListener('submit',async e=>{
+e.preventDefault();
+hideError();
+const email=document.getElementById('loginEmail').value;
+const password=document.getElementById('loginPassword').value;
+const res=await fetch('/api/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email,password})});
+const data=await res.json();
+if(!res.ok){showError(data.error||'Login failed');return}
+window.location.href=redirect+(redirect.includes('?')?'&':'?')+'code='+data.token+(site?'&site='+site:'');
+});
+document.getElementById('registerForm').addEventListener('submit',async e=>{
+e.preventDefault();
+hideError();
+const email=document.getElementById('registerEmail').value;
+const password=document.getElementById('registerPassword').value;
+const res=await fetch('/api/auth/register',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email,password})});
+const data=await res.json();
+if(!res.ok){showError(data.error||'Registration failed');return}
+window.location.href=redirect+(redirect.includes('?')?'&':'?')+'code='+data.token+(site?'&site='+site:'');
+});
+// Show correct form
+document.getElementById('loginForm').style.display='block';
+</script>
+</body>
+</html>`;
+
 // ── Database ──
 const db = new Database('users.db');
 db.exec(`
@@ -42,6 +127,11 @@ const authMiddleware = (req, res, next) => {
 };
 
 // ── Auth Routes ──
+
+// Login page (HTML) — replaces auth.acedata.cloud/auth/login
+app.get('/auth/login', (req, res) => {
+  res.send(LOGIN_PAGE);
+});
 
 // Register
 app.post('/api/auth/register', async (req, res) => {
@@ -92,13 +182,25 @@ app.get('/api/auth/me', authMiddleware, (req, res) => {
 });
 
 // ── Token endpoint (compatible with Ace Data Cloud SSO token format) ──
-app.post('/sso/v1/token', authMiddleware, (req, res) => {
-  // Return token in Ace Data Cloud format so the frontend's getToken() works
-  res.json({
-    access_token: req.headers.authorization.split(' ')[1],
-    refresh_token: 'nexior-refresh',
-    expires_in: 2592000 // 30 days
-  });
+// The frontend calls POST /sso/v1/token with { code: "..." }
+// where code is our JWT token from the login redirect.
+app.post('/sso/v1/token', (req, res) => {
+  const { code } = req.body;
+  if (!code) {
+    return res.status(400).json({ error: 'Code required' });
+  }
+  try {
+    // Verify the JWT (it's our token from login)
+    const decoded = jwt.verify(code, JWT_SECRET);
+    // Return in Ace Data Cloud format
+    res.json({
+      access_token: code,
+      refresh_token: 'nexior-refresh',
+      expires_in: 2592000 // 30 days
+    });
+  } catch (err) {
+    return res.status(401).json({ error: 'Invalid code' });
+  }
 });
 
 // ── User endpoint (compatible with Ace Data Cloud user format) ──
