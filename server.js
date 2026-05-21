@@ -11,6 +11,48 @@ const PORT = process.env.PORT || 3000;
 const JWT_SECRET = process.env.JWT_SECRET || 'nexior-studio-secret-change-in-production';
 const ACE_DATA_API_KEY = process.env.ACE_DATA_API_KEY || '';
 
+// ── Email config ──
+const SMTP_HOST = process.env.SMTP_HOST || '';
+const SMTP_PORT = parseInt(process.env.SMTP_PORT || '587');
+const SMTP_USER = process.env.SMTP_USER || '';
+const SMTP_PASS = process.env.SMTP_PASS || '';
+const SMTP_FROM = process.env.SMTP_FROM || 'noreply@nexior.studio';
+let mailer = null;
+
+const getMailer = () => {
+  if (mailer) return mailer;
+  if (!SMTP_HOST || !SMTP_USER || !SMTP_PASS) return null;
+  const nodemailer = require('nodemailer');
+  mailer = nodemailer.createTransport({
+    host: SMTP_HOST,
+    port: SMTP_PORT,
+    secure: SMTP_PORT === 465,
+    auth: { user: SMTP_USER, pass: SMTP_PASS }
+  });
+  return mailer;
+};
+
+const sendResetEmail = async (to, resetUrl) => {
+  const transport = getMailer();
+  if (!transport) {
+    console.log('Email not configured — reset URL:', resetUrl);
+    return false;
+  }
+  await transport.sendMail({
+    from: SMTP_FROM,
+    to,
+    subject: 'Nexior Studio — Password Reset',
+    html: `<div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:24px;background:#0B1120;color:#F1F5F9;border-radius:12px">
+<h2 style="color:#0891B2">Nexior Studio</h2>
+<p>You requested a password reset. Click the button below to set a new password:</p>
+<a href="${resetUrl}" style="display:inline-block;margin:16px 0;padding:12px 24px;background:linear-gradient(135deg,#2563EB,#0891B2);color:white;text-decoration:none;border-radius:8px;font-weight:600">Reset Password</a>
+<p style="color:#94A3B8;font-size:12px">This link expires in 1 hour. If you didn't request this, ignore this email.</p>
+</div>`
+  });
+  console.log('Reset email sent to', to);
+  return true;
+};
+
 // ── Login page HTML ──
 const LOGIN_PAGE = `<!DOCTYPE html>
 <html lang="en">
@@ -284,7 +326,7 @@ app.post('/api/auth/login', async (req, res) => {
 });
 
 // Forgot password — generate reset token
-app.post('/api/auth/forgot-password', (req, res) => {
+app.post('/api/auth/forgot-password', async (req, res) => {
   const { email } = req.body;
   if (!email) {
     return res.status(400).json({ error: 'Email required' });
@@ -299,11 +341,10 @@ app.post('/api/auth/forgot-password', (req, res) => {
   db.prepare('UPDATE users SET reset_token = ?, reset_token_expires = ? WHERE id = ?').run(resetToken, expires, user.id);
   // Since we don't have email, include the reset URL in the response
   const resetUrl = `https://nexior-auth-proxy.onrender.com/auth/login?reset_token=${resetToken}`;
+  const emailSent = await sendResetEmail(email, resetUrl);
   res.json({
-    message: 'Password reset link generated.',
-    reset_url: resetUrl,
-    reset_token: resetToken,
-    note: 'Email delivery not configured yet. Use the reset_url to reset your password.'
+    message: 'If this email is registered, a reset link has been sent.',
+    ...(emailSent ? {} : { reset_url: resetUrl, reset_token: resetToken, note: 'Email not configured — use the reset_url directly.' })
   });
 });
 
