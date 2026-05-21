@@ -8,7 +8,7 @@ const { createProxyMiddleware } = require('http-proxy-middleware');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const JWT_SECRET = process.env.JWT_SECRET || 'nexior-studio-secret-change-in-production';
+const JWT_SECRET = process.env.JWT_SECRET || 'atlas-studio-secret-change-in-production';
 const ACE_DATA_API_KEY = process.env.ACE_DATA_API_KEY || '';
 
 // ── Email config ──
@@ -41,9 +41,9 @@ const sendResetEmail = async (to, resetUrl) => {
   await transport.sendMail({
     from: SMTP_FROM,
     to,
-    subject: 'Nexior Studio — Password Reset',
+    subject: 'Atlas Studio — Password Reset',
     html: `<div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:24px;background:#0B1120;color:#F1F5F9;border-radius:12px">
-<h2 style="color:#0891B2">Nexior Studio</h2>
+<h2 style="color:#0891B2">Atlas Studio</h2>
 <p>You requested a password reset. Click the button below to set a new password:</p>
 <a href="${resetUrl}" style="display:inline-block;margin:16px 0;padding:12px 24px;background:linear-gradient(135deg,#2563EB,#0891B2);color:white;text-decoration:none;border-radius:8px;font-weight:600">Reset Password</a>
 <p style="color:#94A3B8;font-size:12px">This link expires in 1 hour. If you didn't request this, ignore this email.</p>
@@ -58,7 +58,7 @@ const LOGIN_PAGE = `<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>Nexior Studio — Login</title>
+<title>Atlas Studio — Login</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 body{font-family:system-ui,-apple-system,sans-serif;background:#0B1120;color:#F1F5F9;display:grid;place-items:center;min-height:100vh}
@@ -83,7 +83,7 @@ a{color:#0891B2;text-decoration:none}
 </head>
 <body>
 <div class="card">
-<h1>Nexior Studio</h1>
+<h1>Atlas Studio</h1>
 <p>AI Creative Hub</p>
 <div id="error" class="error" style="display:none"></div>
 <div id="success" class="success" style="display:none"></div>
@@ -389,7 +389,7 @@ app.post('/sso/v1/token', (req, res) => {
     jwt.verify(code, JWT_SECRET);
     res.json({
       access_token: code,
-      refresh_token: 'nexior-refresh',
+      refresh_token: 'atlas-studio-refresh',
       expires_in: 2592000
     });
   } catch (err) {
@@ -415,7 +415,7 @@ app.post('/api/v1/sites/initialize', authMiddleware, (req, res) => {
   res.json({
     id: 1,
     origin: origin,
-    title: 'Nexior Studio',
+    title: 'Atlas Studio',
     description: 'AI Creative Hub',
     features: {
       chatgpt: { enabled: true }, claude: { enabled: true }, gemini: { enabled: true },
@@ -434,7 +434,7 @@ app.get('/api/v1/sites', authMiddleware, (req, res) => {
   const origin = req.query.origin || req.headers.origin || 'localhost';
   res.json({
     items: [{
-      id: 1, origin: origin, title: 'Nexior Studio',
+      id: 1, origin: origin, title: 'Atlas Studio',
       features: {
         chatgpt: { enabled: true }, claude: { enabled: true }, gemini: { enabled: true },
         deepseek: { enabled: true }, midjourney: { enabled: true }, flux: { enabled: true },
@@ -491,5 +491,5 @@ app.get('/health', (req, res) => {
 
 // Start
 app.listen(PORT, () => {
-  console.log(`Nexior Auth Proxy running on port ${PORT}`);
+  console.log(`Atlas Studio Auth Proxy running on port ${PORT}`);
 });
