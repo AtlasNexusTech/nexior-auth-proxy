@@ -133,6 +133,12 @@ app.get('/auth/login', (req, res) => {
   res.send(LOGIN_PAGE);
 });
 
+// Logout — redirect back to the app (token cleared client-side)
+app.get('/auth/logout', (req, res) => {
+  const redirect = req.query.redirect || '/';
+  res.redirect(redirect);
+});
+
 // Register
 app.post('/api/auth/register', async (req, res) => {
   const { email, password } = req.body;
