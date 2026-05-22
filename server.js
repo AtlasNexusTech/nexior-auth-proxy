@@ -16,7 +16,7 @@ const SMTP_HOST = process.env.SMTP_HOST || '';
 const SMTP_PORT = parseInt(process.env.SMTP_PORT || '587');
 const SMTP_USER = process.env.SMTP_USER || '';
 const SMTP_PASS = process.env.SMTP_PASS || '';
-const SMTP_FROM = process.env.SMTP_FROM || 'noreply@nexior.studio';
+const SMTP_FROM = process.env.SMTP_FROM || 'noreply@atlasnexus.tech';
 let mailer = null;
 
 const getMailer = () => {
@@ -202,7 +202,7 @@ const email=document.getElementById('forgotEmail').value;
 const res=await fetch('/api/auth/forgot-password',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email})});
 const data=await res.json();
 if(!res.ok){showError(data.error||'Request failed');return}
-showSuccess(data.message||'If the email exists, a reset link has been generated.');
+showSuccess(data.message||'If the email exists, a reset link has been generated.'); if(data.reset_url){document.getElementById('success').innerHTML+='<br><a href='+data.reset_url+'>'+data.reset_url+'</a>';}
 });
 
 // Reset password submit
@@ -339,8 +339,10 @@ app.post('/api/auth/forgot-password', async (req, res) => {
   const resetToken = crypto.randomBytes(32).toString('hex');
   const expires = new Date(Date.now() + 3600000).toISOString(); // 1 hour
   db.prepare('UPDATE users SET reset_token = ?, reset_token_expires = ? WHERE id = ?').run(resetToken, expires, user.id);
-  // Since we don't have email, include the reset URL in the response
-  const resetUrl = `https://nexior-auth-proxy.onrender.com/auth/login?reset_token=${resetToken}`;
+  // Build reset URL from request host (works regardless of domain)
+  const host = req.get('host') || 'nexior-auth-proxy.onrender.com';
+  const protocol = host.includes('localhost') ? 'http' : 'https';
+  const resetUrl = `${protocol}://${host}/auth/login?reset_token=${resetToken}`;
   const emailSent = await sendResetEmail(email, resetUrl);
   res.json({
     message: 'If this email is registered, a reset link has been sent.',
